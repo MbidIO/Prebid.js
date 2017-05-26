@@ -3,10 +3,8 @@ import Adapter from 'src/adapters/pubgears'
 import bidmanager from 'src/bidmanager'
 
 describe('PubGearsAdapter', () => {
-  var adapter, mockScript,
-		 params = {
-   bids: []
- }
+  var adapter, mockScript
+  var params = { bids: [] }
 
   beforeEach(() => {
     adapter = new Adapter()
@@ -149,6 +147,65 @@ describe('PubGearsAdapter', () => {
       expect(spy.calledWith('onBidResponse')).to.be.ok
       expect(spy.calledWith('onResourceComplete')).to.be.ok
     })
+
+    it('should dispatch the `rerunAuction` event when called twice', () => {
+      var params = {
+        bidderCode: 'pubgears',
+        bids: [
+          {
+            bidder: 'pubgears',
+            sizes: [ [ 300, 250 ] ],
+            adUnitCode: 'foo123/header-bid-tag',
+            params: {
+              publisherName: 'integration',
+              pubZone: 'testpub.com/combined'
+            }
+          },
+        ]
+      };
+      adapter.callBids(params)
+      var script = document.createElement.returnValues[0]
+      sinon.spy(script, 'dispatchEvent')
+      adapter.callBids(params)
+      expect(script.dispatchEvent.calledOnce).to.be.ok
+    })
+
+    it('should dispatch the `rerunAuction` event with slot list in details', () => {
+      var params = {
+        bidderCode: 'pubgears',
+        bids: [
+          {
+            bidder: 'pubgears',
+            sizes: [ [300, 250] ],
+            adUnitCode: 'foo123/header-bid-tag',
+            params: {
+              publisherName: 'integration',
+              pubZone: 'testpub.com/combined'
+            }
+          },
+          {
+            bidder: 'pubgears',
+            sizes: [ [160, 600] ],
+            adUnitCode: 'foo123/header-bid-tag',
+            params: {
+              publisherName: 'integration',
+              pubZone: 'testpub.com/combined'
+            }
+          }
+        ]
+      };
+      var expected = 'testpub.com/combined@300x250 testpub.com/combined@160x600'
+      adapter.callBids(params)
+      var script = document.createElement.returnValues[0]
+      sinon.spy(script, 'dispatchEvent')
+      adapter.callBids(params)
+      expect(script.dispatchEvent.calledOnce).to.be.ok
+      var eventDetails = script.dispatchEvent.getCall(0).args[0]
+      expect(eventDetails).to.have.property('detail')
+      expect(eventDetails.detail).to.have.property('data')
+      expect(eventDetails.detail.data).to.have.property('slot_list')
+      expect(eventDetails.detail.data.slot_list).to.equal(expected)
+    })
   })
 
   describe('bids received', () => {
@@ -199,7 +256,7 @@ describe('PubGearsAdapter', () => {
 
       })
       var script = document.getElementById('pg-header-tag')
-      var event = new CustomEvent('onBidResponse', options)
+      var event = new window.CustomEvent('onBidResponse', options)
       script.dispatchEvent(event)
 
       expect(bidmanager.addBidResponse.calledOnce).to.be.ok
@@ -235,7 +292,7 @@ describe('PubGearsAdapter', () => {
         }
       }
       var script = document.getElementById('pg-header-tag')
-      var event = new CustomEvent('onBidResponse', options)
+      var event = new window.CustomEvent('onBidResponse', options)
       script.dispatchEvent(event)
 
       var args = bidmanager.addBidResponse.getCall(1).args
@@ -273,7 +330,7 @@ describe('PubGearsAdapter', () => {
         }
       }
       var script = document.getElementById('pg-header-tag')
-      var event = new CustomEvent('onBidResponse', options)
+      var event = new window.CustomEvent('onBidResponse', options)
 
       bidmanager.addBidResponse.reset()
       script.dispatchEvent(event)

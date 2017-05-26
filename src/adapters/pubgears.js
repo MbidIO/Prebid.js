@@ -28,6 +28,7 @@ var PUBLISHER_PARAM = 'publisherName';
 var PUB_ZONE_PARAM = 'pubZone';
 var BID_RECEIVED_EVENT_NAME = 'onBidResponse';
 var SLOT_READY_EVENT_NAME = 'onResourceComplete';
+var RERUN_AUCTION_EVENT_NAME = 'rerunAuction';
 var CREATIVE_TEMPLATE = decodeURIComponent("%3Cscript%3E%0A(function(define)%7B%0Adefine(function(a)%7B%0A%09var%20id%3D%20%22pg-ad-%22%20%2B%20Math.floor(Math.random()%20*%201e10)%2C%20d%3D%20document%0A%09d.write(\'%3Cdiv%20id%3D%22\'%2Bid%2B\'%22%3E%3C%2Fdiv%3E\')%0A%09a.push(%7B%0A%09%09pub%3A%20\'%25%25PUBLISHER_NAME%25%25\'%2C%0A%09%09pub_zone%3A%20\'%25%25PUB_ZONE%25%25\'%2C%0A%09%09sizes%3A%20%5B\'%25%25SIZE%25%25\'%5D%2C%0A%09%09flag%3A%20true%2C%0A%09%09container%3A%20d.getElementById(id)%2C%0A%09%7D)%3B%0A%7D)%7D)(function(f)%7Bvar%20key%3D\'uber_imps\'%2Ca%3Dthis%5Bkey%5D%3Dthis%5Bkey%5D%7C%7C%5B%5D%3Bf(a)%3B%7D)%3B%0A%3C%2Fscript%3E%0A%3Cscript%20src%3D%22%2F%2Fc.pubgears.com%2Ftags%2Fb%22%3E%3C%2Fscript%3E%0A");
 var TAG_URL = '//c.pubgears.com/tags/h';
 var publisher = '';
@@ -35,6 +36,12 @@ var publisher = '';
 module.exports = PubGearsAdapter;
 
 function PubGearsAdapter() {
+  var MyCustomEvent = typeof window.Event === 'function' ? window.CustomEvent
+            : function (event, params) {
+              var evt = document.createEvent('CustomEvent');
+              evt.initCustomEvent(event, params.bubbles, params.cancelable, params.details);
+              return evt;
+            }
   var proxy = null;
   var pendingSlots = {};
   var initialized = false;
@@ -56,6 +63,8 @@ function PubGearsAdapter() {
     proxy = proxy || getScript(SCRIPT_ID) || makeScript(slots, publisher, SCRIPT_ID, TAG_URL);
     if (!initialized)
       { registerEventListeners(proxy); }
+    else
+      { dispatchRerunEvent(slots, proxy); }
     initialized = true;
   }
   function loadScript(script) {
@@ -70,6 +79,17 @@ function PubGearsAdapter() {
     var params = bid[PARAMS];
     var slotName = params[PUB_ZONE_PARAM];
     return [ slotName, size ].join('@');
+  }
+  function dispatchRerunEvent(slotList, proxy) {
+    var eventDetails = {
+      'detail': {
+        'data': {
+          'slot_list': slotList.join(' ')
+        }
+      }
+    };
+    var event = new MyCustomEvent(RERUN_AUCTION_EVENT_NAME, eventDetails);
+    proxy.dispatchEvent(event);
   }
   function getSlotFromResource(resource) {
     var size = resource[SIZE];

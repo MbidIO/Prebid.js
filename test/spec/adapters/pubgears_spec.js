@@ -3,13 +3,9 @@ import Adapter from 'src/adapters/pubgears'
 import bidmanager from 'src/bidmanager'
 
 describe('PubGearsAdapter', () => {
-  var adapter, mockScript
-  var params = { bids: [] }
-
+  var adapter
   beforeEach(() => {
     adapter = new Adapter()
-    mockScript = document.createElement('script')
-    sinon.spy(mockScript, 'setAttribute')
   })
 
   describe('request function', () => {
@@ -144,10 +140,8 @@ describe('PubGearsAdapter', () => {
       }
       adapter.callBids(params)
 
-      expect(spy.calledWith('onBidResponse')).to.be.ok
       expect(spy.calledWith('onResourceComplete')).to.be.ok
     })
-
     it('should dispatch the `rerunAuction` event when called twice', () => {
       var params = {
         bidderCode: 'pubgears',
@@ -169,7 +163,6 @@ describe('PubGearsAdapter', () => {
       adapter.callBids(params)
       expect(script.dispatchEvent.calledOnce).to.be.ok
     })
-
     it('should dispatch the `rerunAuction` event with slot list in details', () => {
       var params = {
         bidderCode: 'pubgears',
@@ -222,7 +215,7 @@ describe('PubGearsAdapter', () => {
         bubbles: false,
         cancelable: false,
         detail: {
-          gross_price: 1000,
+          prices: [0, 50, 1000],
           resource: {
             position: 'atf',
             pub_zone: 'testpub.com/combined',
@@ -256,13 +249,13 @@ describe('PubGearsAdapter', () => {
 
       })
       var script = document.getElementById('pg-header-tag')
-      var event = new window.CustomEvent('onBidResponse', options)
+      var event = new window.CustomEvent('onResourceComplete', options)
       script.dispatchEvent(event)
 
       expect(bidmanager.addBidResponse.calledOnce).to.be.ok
     })
 
-    it('should send correct bid response object when receiving onBidResponse event', () => {
+    it('should send correct bid response object when receiving onResourceComplete event', () => {
       expect(bidmanager.addBidResponse.calledOnce).to.not.be.ok
       var bid = {
         bidder: 'pubgears',
@@ -279,23 +272,22 @@ describe('PubGearsAdapter', () => {
         bids: [ bid ]
       })
 
-      var options = {
+      var script = document.getElementById('pg-header-tag')
+
+      script.dispatchEvent(new window.CustomEvent('onResourceComplete', {
         bubbles: false,
         cancelable: false,
         detail: {
-          gross_price: 1000,
+          prices: [ 1500 ],
           resource: {
             position: 'atf',
             pub_zone: 'testpub.com/combined',
             size: '300x250'
           }
         }
-      }
-      var script = document.getElementById('pg-header-tag')
-      var event = new window.CustomEvent('onBidResponse', options)
-      script.dispatchEvent(event)
+      }));
 
-      var args = bidmanager.addBidResponse.getCall(1).args
+      var args = bidmanager.addBidResponse.getCall(0).args
       expect(args).to.have.length(2)
       var bidResponse = args[1]
       expect(bidResponse.ad).to.contain(bid.params.pubZone)
@@ -321,7 +313,7 @@ describe('PubGearsAdapter', () => {
         bubbles: false,
         cancelable: false,
         detail: {
-          gross_price: 0,
+          prices: [ 0 ],
           resource: {
             position: 'atf',
             pub_zone: 'testpub.com/combined',
@@ -330,15 +322,58 @@ describe('PubGearsAdapter', () => {
         }
       }
       var script = document.getElementById('pg-header-tag')
-      var event = new window.CustomEvent('onBidResponse', options)
+      var event = new window.CustomEvent('onResourceComplete', options)
 
       bidmanager.addBidResponse.reset()
       script.dispatchEvent(event)
 
-      var args = bidmanager.addBidResponse.getCall(1).args
+      var args = bidmanager.addBidResponse.getCall(0).args
       var bidResponse = args[1]
       expect(bidResponse).to.be.a('object')
       expect(bidResponse.getStatusCode()).to.equal(2)
+    })
+    it('should not send multiple bid responses to the same bid call', () => {
+      var bid = {
+        bidder: 'pubgears',
+        sizes: [ [300, 250] ],
+        adUnitCode: 'foo123/header-bid-tag',
+        params: {
+          publisherName: 'integration',
+          pubZone: 'testpub.com/combined'
+        }
+      }
+
+      adapter.callBids({
+        bidderCode: 'pubgears',
+        bids: [ bid ]
+      })
+
+      bidmanager.addBidResponse.reset()
+      var script = document.getElementById('pg-header-tag');
+      script.dispatchEvent(new window.CustomEvent('onResourceComplete', {
+        bubbles: false,
+        cancelable: false,
+        detail: {
+          prices: [ 0 ],
+          resource: {
+            position: 'atf',
+            pub_zone: 'testpub.com/combined',
+            size: '300x250'
+          }
+        }
+      }));
+      script.dispatchEvent(new window.CustomEvent('onResourceComplete', {
+        detail: {
+          prices: [ 0 ],
+          resource: {
+            position: 'atf',
+            pub_zone: 'testpub.com/combined',
+            size: '300x250'
+          }
+        }
+      }));
+
+      expect(bidmanager.addBidResponse.calledOnce).to.be.true;
     })
   })
 })

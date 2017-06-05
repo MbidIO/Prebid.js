@@ -26,7 +26,6 @@ var PLACEMENT_CODE = 'placementCode';
 var BID_ID = 'bidId';
 var PUBLISHER_PARAM = 'publisherName';
 var PUB_ZONE_PARAM = 'pubZone';
-var BID_RECEIVED_EVENT_NAME = 'onBidResponse';
 var SLOT_READY_EVENT_NAME = 'onResourceComplete';
 var RERUN_AUCTION_EVENT_NAME = 'rerunAuction';
 var CREATIVE_TEMPLATE = decodeURIComponent("%3Cscript%3E%0A(function(define)%7B%0Adefine(function(a)%7B%0A%09var%20id%3D%20%22pg-ad-%22%20%2B%20Math.floor(Math.random()%20*%201e10)%2C%20d%3D%20document%0A%09d.write(\'%3Cdiv%20id%3D%22\'%2Bid%2B\'%22%3E%3C%2Fdiv%3E\')%0A%09a.push(%7B%0A%09%09pub%3A%20\'%25%25PUBLISHER_NAME%25%25\'%2C%0A%09%09pub_zone%3A%20\'%25%25PUB_ZONE%25%25\'%2C%0A%09%09sizes%3A%20%5B\'%25%25SIZE%25%25\'%5D%2C%0A%09%09flag%3A%20true%2C%0A%09%09container%3A%20d.getElementById(id)%2C%0A%09%7D)%3B%0A%7D)%7D)(function(f)%7Bvar%20key%3D\'uber_imps\'%2Ca%3Dthis%5Bkey%5D%3Dthis%5Bkey%5D%7C%7C%5B%5D%3Bf(a)%3B%7D)%3B%0A%3C%2Fscript%3E%0A%3Cscript%20src%3D%22%2F%2Fc.pubgears.com%2Ftags%2Fb%22%3E%3C%2Fscript%3E%0A");
@@ -115,28 +114,12 @@ function PubGearsAdapter() {
     return d.getElementById(id);
   }
   function registerEventListeners(script) {
-    script.addEventListener(BID_RECEIVED_EVENT_NAME, onBid, true);
     script.addEventListener(SLOT_READY_EVENT_NAME, onComplete, true);
-  }
-  function onBid(event) {
-    var data = event[DETAIL];
-    var slotKey = getSlotFromResource(data[RESOURCE]);
-    var bidRequest = pendingSlots[slotKey];
-    var adUnitCode = bidRequest[PLACEMENT_CODE];
-    var bid = null;
-
-    if (bidRequest) {
-      bid = buildResponse(data, bidRequest);
-      bidmanager.addBidResponse(adUnitCode, bid);
-      utils.logMessage('adding bid respoonse to "' + adUnitCode + '" for bid request "' + bidRequest[BID_ID] + '"');
-    } else {
-      utils.logError('Cannot get placement id for slot "' + slotKey + '"');
-    }
   }
   function buildResponse(eventData, bidRequest) {
     var resource = eventData[RESOURCE];
     var dims = resource[SIZE].split('x');
-    var price = Number(eventData[GROSS_PRICE]);
+    var price = eventData.prices[ eventData.prices.length - 1 ]
     var status = isNaN(price) || price <= 0 ? 2 : 1;
 
     var response = bidfactory.createBid(status, bidRequest);
@@ -165,6 +148,14 @@ function PubGearsAdapter() {
   function onComplete(event) {
     var data = event[DETAIL];
     var slotKey = getSlotFromResource(data[RESOURCE]);
+    var bidRequest = pendingSlots[slotKey];
+
+    if (!bidRequest) {
+      return
+    }
     delete pendingSlots[slotKey];
+    var bidResponse = buildResponse(data, bidRequest)
+    var adUnitCode = bidRequest[PLACEMENT_CODE];
+    bidmanager.addBidResponse(adUnitCode, bidResponse);
   }
 }
